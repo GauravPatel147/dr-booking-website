@@ -1,0 +1,7 @@
+pycache/
+*.py[cod]
+venv/
+.venv/
+.env
+appointments.csv
+.vscode/
