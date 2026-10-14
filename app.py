@@ -1,11 +1,36 @@
 from flask import Flask, render_template, request, redirect
 from datetime import datetime
-import csv
 import os
+import psycopg2
 
 app = Flask(__name__)
 
-CSV_FILE = "appointments.csv"
+def get_db_connection():
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        raise RuntimeError("DATABASE_URL is not configured")
+    return psycopg2.connect(database_url)
+
+def init_db():
+    if not os.environ.get("DATABASE_URL"):
+        return
+
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS appointments (
+                    id SERIAL PRIMARY KEY,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    full_name TEXT NOT NULL,
+                    email TEXT NOT NULL,
+                    phone TEXT NOT NULL,
+                    service TEXT NOT NULL,
+                    appointment_date DATE NOT NULL,
+                    appointment_time TEXT NOT NULL,
+                    message TEXT DEFAULT ''
+                )
+            """)
+        conn.commit()
 
 @app.route("/")
 def home():
@@ -19,8 +44,10 @@ def book():
         "service", "date", "time", "message"
     ]
 
-    data = {field: request.form.get(field, "").strip()
-            for field in fields}
+    data = {
+        field: request.form.get(field, "").strip()
+        for field in fields
+    }
 
     required = [
         "full_name", "email", "phone",
@@ -30,29 +57,43 @@ def book():
     if any(not data[field] for field in required):
         return "Please fill in all required fields.", 400
 
-    file_exists = os.path.isfile(CSV_FILE)
+    try:
+        appointment_date = datetime.strptime(
+            data["date"], "%Y-%m-%d"
+        ).date()
 
-    with open(CSV_FILE, "a", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
+        init_db()
 
-        if not file_exists:
-            writer.writerow([
-                "Timestamp", "FullName", "Email", "Phone",
-                "Service", "Date", "Time", "Message"
-            ])
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO appointments (
+                        full_name, email, phone, service,
+                        appointment_date, appointment_time, message
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    data["full_name"],
+                    data["email"],
+                    data["phone"],
+                    data["service"],
+                    appointment_date,
+                    data["time"],
+                    data["message"]
+                ))
+            conn.commit()
 
-        writer.writerow([
-            datetime.now().isoformat(timespec="seconds"),
-            data["full_name"],
-            data["email"],
-            data["phone"],
-            data["service"],
-            data["date"],
-            data["time"],
-            data["message"]
-        ])
+    except ValueError:
+        return "Invalid appointment date.", 400
+    except Exception:
+        app.logger.exception("Appointment booking failed")
+        return "Booking could not be completed. Please try again later.", 500
 
     return redirect("/?success=1")
 
+
 if __name__ == "__main__":
-    app.run(debug=True, port=int(os.environ.get("PORT", 5000)))
+    app.run(
+        debug=False,
+        port=int(os.environ.get("PORT", 5000))
+    )++++
