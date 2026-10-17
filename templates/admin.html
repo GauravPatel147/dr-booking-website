@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Appointments</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 30px; background: #f4f7fb; }
+        h1 { color: #176b87; }
+        .table-wrap { overflow-x: auto; background: white; padding: 15px; border-radius: 10px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
+        th { background: #176b87; color: white; }
+    </style>
+</head>
+<body>
+    <h1>DoctorCare — Appointments</h1>
+    <p>Recent appointment bookings</p>
+
+    {% if appointments %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Service</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in appointments %}
+                <tr>
+                    {% for value in a %}
+                    <td>{{ value }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p>No appointments found.</p>
+    {% endif %}
+</body>
+</html>
