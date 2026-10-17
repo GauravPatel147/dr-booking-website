@@ -33,6 +33,10 @@ def init_db():
                     status TEXT NOT NULL DEFAULT 'Pending',
                 )
             """)
+            cur.execute("""
+    ALTER TABLE appointments
+    ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Pending'
+""")
         conn.commit()
 
 @app.route("/")
