@@ -93,7 +93,27 @@ def book():
 
     return redirect("/?success=1")
 
+@app.route("/admin", methods=["GET", "POST"])
+def admin():
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        if password != os.environ.get("ADMIN_PASSWORD"):
+            return "Incorrect password", 401
 
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT id, full_name, email, phone, service,
+                           appointment_date, appointment_time
+                    FROM appointments
+                    ORDER BY id DESC
+                    LIMIT 50
+                """)
+                appointments = cur.fetchall()
+
+        return render_template("admin.html", appointments=appointments)
+
+    return render_template("admin_login.html")
 if __name__ == "__main__":
     app.run(
         debug=False,
