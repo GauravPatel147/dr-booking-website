@@ -2,8 +2,10 @@ from flask import Flask, render_template, request, redirect
 from datetime import datetime
 import os
 import psycopg2
-
+from functools import wraps
+from flask import session, abort
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY")
 
 def get_db_connection():
     database_url = os.environ.get("DATABASE_URL")
@@ -97,3 +99,4 @@ if __name__ == "__main__":
         debug=False,
         port=int(os.environ.get("PORT", 5000))
     )
+    
