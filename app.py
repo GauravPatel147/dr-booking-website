@@ -29,8 +29,8 @@ def init_db():
                     service TEXT NOT NULL,
                     appointment_date DATE NOT NULL,
                     appointment_time TEXT NOT NULL,
-                    message TEXT DEFAULT ''
-                    "status" TEXT NOT NULL DEFAULT 'Pending',
+                    message TEXT DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'Pending'
                 )
             """)
             cur.execute("""
