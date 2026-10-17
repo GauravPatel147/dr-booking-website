@@ -30,6 +30,7 @@ def init_db():
                     appointment_date DATE NOT NULL,
                     appointment_time TEXT NOT NULL,
                     message TEXT DEFAULT ''
+                    status TEXT NOT NULL DEFAULT 'Pending',
                 )
             """)
         conn.commit()
