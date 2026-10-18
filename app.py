@@ -1,7 +1,9 @@
 from flask import (
-    Flask, render_template, request, redirect, session, abort, url_for
+    Flask, render_template, request, redirect,
+    session, abort, url_for
 )
 from datetime import datetime, timedelta
+from functools import wraps
 import os
 import psycopg2
 
@@ -13,6 +15,7 @@ app.secret_key = os.environ.get("SECRET_KEY")
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("RENDER") is not None,
     PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),
 )
 
@@ -56,6 +59,16 @@ def init_db():
             """)
 
         conn.commit()
+
+
+# Admin authentication helper
+def admin_required(view):
+    @wraps(view)
+    def wrapped_view(*args, **kwargs):
+        if not session.get("admin_logged_in"):
+            abort(403)
+        return view(*args, **kwargs)
+    return wrapped_view
 
 
 # Home page
@@ -126,7 +139,7 @@ def book():
     return redirect(url_for("home", success=1))
 
 
-# Admin login and appointments page
+# Admin login and dashboard
 @app.route("/admin", methods=["GET", "POST"])
 def admin():
     if request.method == "POST":
@@ -136,10 +149,12 @@ def admin():
         if not admin_password or password != admin_password:
             return "Incorrect password", 401
 
-        # Start a fresh admin session after successful login
+        # Start a fresh session after successful login
         session.clear()
         session["admin_logged_in"] = True
         session.permanent = True
+
+        return redirect(url_for("admin"))
 
     if not session.get("admin_logged_in"):
         return render_template("admin_login.html")
@@ -147,6 +162,33 @@ def admin():
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
+
+                # Dashboard counts
+                cur.execute("""
+                    SELECT
+                        COUNT(*) AS total,
+                        COUNT(*) FILTER (
+                            WHERE status = 'Pending'
+                        ) AS pending,
+                        COUNT(*) FILTER (
+                            WHERE status = 'Confirmed'
+                        ) AS confirmed,
+                        COUNT(*) FILTER (
+                            WHERE status = 'Completed'
+                        ) AS completed
+                    FROM appointments
+                """)
+
+                row = cur.fetchone()
+
+                dashboard_stats = {
+                    "total": row[0],
+                    "pending": row[1],
+                    "confirmed": row[2],
+                    "completed": row[3],
+                }
+
+                # Recent appointments
                 cur.execute("""
                     SELECT id, full_name, email, phone, service,
                            appointment_date, appointment_time, status
@@ -154,38 +196,37 @@ def admin():
                     ORDER BY id DESC
                     LIMIT 50
                 """)
+
                 appointments = cur.fetchall()
 
         response = app.make_response(
             render_template(
                 "admin.html",
-                appointments=appointments
+                appointments=appointments,
+                dashboard_stats=dashboard_stats
             )
         )
+
         response.headers["Cache-Control"] = "no-store"
         return response
 
     except Exception:
-        app.logger.exception("Admin appointments page failed")
-        return "Could not load appointments. Please try again.", 500
+        app.logger.exception("Admin dashboard failed")
+        return "Could not load dashboard. Please try again.", 500
 
 
 # Admin logout
 @app.route("/logout", methods=["POST"])
+@admin_required
 def logout():
-    if not session.get("admin_logged_in"):
-        abort(403)
-
     session.clear()
     return redirect(url_for("admin"))
 
 
 # Update appointment status
 @app.route("/update_status", methods=["POST"])
+@admin_required
 def update_status():
-    if not session.get("admin_logged_in"):
-        abort(403)
-
     appointment_id = request.form.get("appointment_id", type=int)
     status = request.form.get("status", "")
 
@@ -204,6 +245,9 @@ def update_status():
                     WHERE id = %s
                 """, (status, appointment_id))
 
+                if cur.rowcount == 0:
+                    return "Appointment not found", 404
+
             conn.commit()
 
         return redirect(url_for("admin"))
@@ -215,10 +259,8 @@ def update_status():
 
 # Delete appointment
 @app.route("/delete_appointment", methods=["POST"])
+@admin_required
 def delete_appointment():
-    if not session.get("admin_logged_in"):
-        abort(403)
-
     appointment_id = request.form.get("appointment_id", type=int)
 
     if not appointment_id:
@@ -231,6 +273,9 @@ def delete_appointment():
                     DELETE FROM appointments
                     WHERE id = %s
                 """, (appointment_id,))
+
+                if cur.rowcount == 0:
+                    return "Appointment not found", 404
 
             conn.commit()
 

@@ -3,104 +3,273 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - Appointments</title>
+
+    <title>DoctorCare | Admin Dashboard</title>
+
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-    font-family: Arial, sans-serif;
-    margin: 0;
-    padding: 30px;
-    background: #f1f5f9;
-    color: #1e293b;
-}
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 30px;
+            background: #f1f5f9;
+            color: #1e293b;
+        }
 
-h1 {
-    color: #176b87;
-    margin-bottom: 8px;
-}
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
 
-p {
-    color: #64748b;
-}
+        h1 {
+            color: #176b87;
+            margin: 0 0 8px;
+        }
 
-.table-wrap {
-    overflow-x: auto;
-    background: white;
-    padding: 15px;
-    border-radius: 12px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-}
+        .subtitle {
+            color: #64748b;
+            margin: 0;
+        }
 
-table {
-    width: 100%;
-    border-collapse: collapse;
-}
+        button {
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            padding: 9px 12px;
+            font-size: 13px;
+        }
 
-th, td {
-    padding: 12px;
-    border-bottom: 1px solid #e2e8f0;
-    text-align: left;
-}
+        .logout-btn {
+            background: #dc2626;
+            color: white;
+            padding: 10px 18px;
+        }
 
-th {
-    background: #176b87;
-    color: white;
-}
-.filters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin: 20px 0;
-}
+        .dashboard-cards {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 16px;
+            margin: 24px 0;
+        }
 
-.filters input,
-.filters select {
-    padding: 10px;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    font-size: 14px;
-}
+        .dashboard-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
 
-.filters input {
-    flex: 1;
-    min-width: 220px;
-}
+        .dashboard-card h3 {
+            font-size: 14px;
+            font-weight: normal;
+            color: #64748b;
+            margin: 0 0 12px;
+        }
 
-.filters select {
-    background: white;
-}
+        .dashboard-card .number {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 0;
+            color: #176b87;
+        }
 
-tbody tr:hover {
-    background: #f8fafc;
-}
+        .pending-card .number {
+            color: #d97706;
+        }
+
+        .confirmed-card .number {
+            color: #15803d;
+        }
+
+        .completed-card .number {
+            color: #6d28d9;
+        }
+
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 20px 0;
+        }
+
+        .filters input,
+        .filters select {
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+        }
+
+        .filters input {
+            flex: 1;
+            min-width: 220px;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 850px;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        th {
+            background: #176b87;
+            color: white;
+            white-space: nowrap;
+        }
+
+        tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        .status-form {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .status-form select {
+            padding: 7px;
+            border: 1px solid #cbd5e1;
+            border-radius: 5px;
+            background: white;
+        }
+
+        .update-btn {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+
+        .delete-btn {
+            background: #dc2626;
+            color: white;
+        }
+
+        .empty-message {
+            background: white;
+            padding: 22px;
+            border-radius: 10px;
+            color: #64748b;
+        }
+
+        @media (max-width: 800px) {
+            body {
+                padding: 16px;
+            }
+
+            .dashboard-cards {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+            }
+
+            .dashboard-card {
+                padding: 15px;
+            }
+
+            .dashboard-card .number {
+                font-size: 27px;
+            }
+        }
+
+        @media (max-width: 380px) {
+            .dashboard-cards {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
-<body>
-    <form action="/logout" method="POST"
-      onsubmit="return confirm('Kya aap logout karna chahte hain?');"
-      style="text-align:right; margin-bottom:20px;">
-    <button type="submit"
-            style="background:#dc2626; color:white; padding:10px 18px; border:0; border-radius:6px; cursor:pointer;">
-        Logout
-    </button>
-</form>
-    <h1>DoctorCare — Appointments</h1>
-    <p>Recent appointment bookings</p>
-    <div class="filters">
-    <input
-        type="text"
-        id="searchInput"
-        placeholder="Search by name, email, phone..."
-    >
 
-    <select id="statusFilter">
-        <option value="">All Statuses</option>
-        <option value="Pending">Pending</option>
-        <option value="Confirmed">Confirmed</option>
-        <option value="Completed">Completed</option>
-    </select>
-</div>
+<body>
+
+    <div class="top-bar">
+        <div>
+            <h1>DoctorCare Dashboard</h1>
+            <p class="subtitle">Manage your appointment bookings</p>
+        </div>
+
+        <form action="{{ url_for('logout') }}"
+              method="POST"
+              onsubmit="return confirm('Kya aap logout karna chahte hain?');">
+
+            <button type="submit" class="logout-btn">
+                Logout
+            </button>
+        </form>
+    </div>
+
+    <!-- Dashboard statistics -->
+    <div class="dashboard-cards">
+
+        <div class="dashboard-card">
+            <h3>Total Appointments</h3>
+            <p class="number">{{ dashboard_stats.total }}</p>
+        </div>
+
+        <div class="dashboard-card pending-card">
+            <h3>Pending</h3>
+            <p class="number">{{ dashboard_stats.pending }}</p>
+        </div>
+
+        <div class="dashboard-card confirmed-card">
+            <h3>Confirmed</h3>
+            <p class="number">{{ dashboard_stats.confirmed }}</p>
+        </div>
+
+        <div class="dashboard-card completed-card">
+            <h3>Completed</h3>
+            <p class="number">{{ dashboard_stats.completed }}</p>
+        </div>
+
+    </div>
+
+    <h2>Recent Appointments</h2>
+
+    <!-- Search and status filter -->
+    <div class="filters">
+
+        <input
+            type="text"
+            id="searchInput"
+            placeholder="Search by name, email, phone..."
+            aria-label="Search appointments"
+        >
+
+        <select id="statusFilter" aria-label="Filter by status">
+            <option value="">All Statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="Confirmed">Confirmed</option>
+            <option value="Completed">Completed</option>
+        </select>
+
+    </div>
 
     {% if appointments %}
+
     <div class="table-wrap">
         <table>
             <thead>
@@ -111,68 +280,118 @@ tbody tr:hover {
                     <th>Phone</th>
                     <th>Service</th>
                     <th>Date</th>
-                    <th>Time</th> 
-                    <th>Status</th>  
+                    <th>Time</th>
+                    <th>Status &amp; Actions</th>
                 </tr>
             </thead>
+
             <tbody>
                 {% for a in appointments %}
-<tr>
-    {% for value in a[:7] %}
-    <td>{{ value }}</td>
-    {% endfor %}
+                <tr>
+                    {% for value in a[:7] %}
+                    <td>{{ value }}</td>
+                    {% endfor %}
 
-    <td>
-        <form action="/update_status" method="POST">
-            <input type="hidden" name="appointment_id" value="{{ a[0] }}">
+                    <td>
+                        <form
+                            action="{{ url_for('update_status') }}"
+                            method="POST"
+                            class="status-form"
+                        >
+                            <input
+                                type="hidden"
+                                name="appointment_id"
+                                value="{{ a[0] }}"
+                            >
 
-            <select name="status">
-                <option value="Pending" {% if a[7] == 'Pending' %}selected{% endif %}>Pending</option>
-                <option value="Confirmed" {% if a[7] == 'Confirmed' %}selected{% endif %}>Confirmed</option>
-                <option value="Completed" {% if a[7] == 'Completed' %}selected{% endif %}>Completed</option>
-            </select>
+                            <select name="status" aria-label="Appointment status">
+                                <option value="Pending"
+                                    {% if a[7] == 'Pending' %}selected{% endif %}>
+                                    Pending
+                                </option>
 
-            <button type="submit">Update</button>
-        </form>
-        <form action="/delete_appointment" method="POST"
-      onsubmit="return confirm('Kya aap is appointment ko delete karna chahte hain?');">
-    <input type="hidden" name="appointment_id" value="{{ a[0] }}">
-    <button type="submit" style="background:#dc2626;color:white;border:none;padding:6px 10px;border-radius:4px;cursor:pointer;">
-        Delete
-    </button>
-</form>
-    </td>
-</tr>
-{% endfor %}
+                                <option value="Confirmed"
+                                    {% if a[7] == 'Confirmed' %}selected{% endif %}>
+                                    Confirmed
+                                </option>
+
+                                <option value="Completed"
+                                    {% if a[7] == 'Completed' %}selected{% endif %}>
+                                    Completed
+                                </option>
+                            </select>
+
+                            <button type="submit" class="update-btn">
+                                Update
+                            </button>
+                        </form>
+
+                        <form
+                            action="{{ url_for('delete_appointment') }}"
+                            method="POST"
+                            onsubmit="return confirm('Kya aap is appointment ko permanently delete karna chahte hain?');"
+                        >
+                            <input
+                                type="hidden"
+                                name="appointment_id"
+                                value="{{ a[0] }}"
+                            >
+
+                            <button type="submit" class="delete-btn">
+                                Delete
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>
+
+    <p id="noResults" class="empty-message" hidden>
+        Koi matching appointment nahi mili.
+    </p>
+
     {% else %}
-    <p>No appointments found.</p>
+
+    <p class="empty-message">Abhi koi appointment available nahi hai.</p>
+
     {% endif %}
+
     <script>
-const searchInput = document.getElementById("searchInput");
-const statusFilter = document.getElementById("statusFilter");
+        const searchInput = document.getElementById("searchInput");
+        const statusFilter = document.getElementById("statusFilter");
+        const noResults = document.getElementById("noResults");
 
-function filterAppointments() {
-    const search = searchInput.value.toLowerCase().trim();
-    const status = statusFilter.value;
+        function filterAppointments() {
+            const search = searchInput.value.toLowerCase().trim();
+            const status = statusFilter.value;
+            let visibleCount = 0;
 
-    document.querySelectorAll("tbody tr").forEach(row => {
-        const text = row.innerText.toLowerCase();
-        const statusSelect = row.querySelector('select[name="status"]');
-        const rowStatus = statusSelect ? statusSelect.value : "";
+            document.querySelectorAll("tbody tr").forEach(row => {
+                const text = row.innerText.toLowerCase();
+                const statusSelect = row.querySelector('select[name="status"]');
+                const rowStatus = statusSelect ? statusSelect.value : "";
 
-        const matchesSearch = text.includes(search);
-        const matchesStatus = !status || rowStatus === status;
+                const matchesSearch = text.includes(search);
+                const matchesStatus = !status || rowStatus === status;
+                const visible = matchesSearch && matchesStatus;
 
-        row.style.display =
-            matchesSearch && matchesStatus ? "" : "none";
-    });
-}
+                row.style.display = visible ? "" : "none";
 
-searchInput.addEventListener("input", filterAppointments);
-statusFilter.addEventListener("change", filterAppointments);
-</script>
+                if (visible) {
+                    visibleCount++;
+                }
+            });
+
+            if (noResults) {
+                noResults.hidden = visibleCount !== 0;
+            }
+        }
+
+        searchInput.addEventListener("input", filterAppointments);
+        statusFilter.addEventListener("change", filterAppointments);
+    </script>
+
 </body>
 </html>
