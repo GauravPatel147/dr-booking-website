@@ -75,6 +75,14 @@ tbody tr:hover {
     </style>
 </head>
 <body>
+    <form action="/logout" method="POST"
+      onsubmit="return confirm('Kya aap logout karna chahte hain?');"
+      style="text-align:right; margin-bottom:20px;">
+    <button type="submit"
+            style="background:#dc2626; color:white; padding:10px 18px; border:0; border-radius:6px; cursor:pointer;">
+        Logout
+    </button>
+</form>
     <h1>DoctorCare — Appointments</h1>
     <p>Recent appointment bookings</p>
     <div class="filters">

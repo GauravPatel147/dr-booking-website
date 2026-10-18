@@ -1,10 +1,21 @@
-from flask import Flask, render_template, request, redirect, session, abort
-from datetime import datetime
+from flask import (
+    Flask, render_template, request, redirect, session, abort, url_for
+)
+from datetime import datetime, timedelta
 import os
 import psycopg2
 
 app = Flask(__name__)
+
+# Security configuration
 app.secret_key = os.environ.get("SECRET_KEY")
+
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),
+)
+
 
 # Database connection
 def get_db_connection():
@@ -40,7 +51,8 @@ def init_db():
 
             cur.execute("""
                 ALTER TABLE appointments
-                ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Pending'
+                ADD COLUMN IF NOT EXISTS status
+                TEXT NOT NULL DEFAULT 'Pending'
             """)
 
         conn.commit()
@@ -106,9 +118,12 @@ def book():
 
     except Exception:
         app.logger.exception("Appointment booking failed")
-        return "Booking could not be completed. Please try again later.", 500
+        return (
+            "Booking could not be completed. Please try again later.",
+            500
+        )
 
-    return redirect("/?success=1")
+    return redirect(url_for("home", success=1))
 
 
 # Admin login and appointments page
@@ -121,7 +136,10 @@ def admin():
         if not admin_password or password != admin_password:
             return "Incorrect password", 401
 
+        # Start a fresh admin session after successful login
+        session.clear()
         session["admin_logged_in"] = True
+        session.permanent = True
 
     if not session.get("admin_logged_in"):
         return render_template("admin_login.html")
@@ -138,14 +156,28 @@ def admin():
                 """)
                 appointments = cur.fetchall()
 
-        return render_template(
-            "admin.html",
-            appointments=appointments
+        response = app.make_response(
+            render_template(
+                "admin.html",
+                appointments=appointments
+            )
         )
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
     except Exception:
         app.logger.exception("Admin appointments page failed")
         return "Could not load appointments. Please try again.", 500
+
+
+# Admin logout
+@app.route("/logout", methods=["POST"])
+def logout():
+    if not session.get("admin_logged_in"):
+        abort(403)
+
+    session.clear()
+    return redirect(url_for("admin"))
 
 
 # Update appointment status
@@ -174,7 +206,7 @@ def update_status():
 
             conn.commit()
 
-        return redirect("/admin")
+        return redirect(url_for("admin"))
 
     except Exception:
         app.logger.exception("Status update failed")
@@ -202,7 +234,7 @@ def delete_appointment():
 
             conn.commit()
 
-        return redirect("/admin")
+        return redirect(url_for("admin"))
 
     except Exception:
         app.logger.exception("Appointment deletion failed")
@@ -210,6 +242,11 @@ def delete_appointment():
 
 
 if __name__ == "__main__":
+    if not app.secret_key:
+        raise RuntimeError(
+            "SECRET_KEY environment variable must be configured"
+        )
+
     app.run(
         debug=False,
         port=int(os.environ.get("PORT", 5000))
