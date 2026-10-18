@@ -126,6 +126,13 @@ tbody tr:hover {
 
             <button type="submit">Update</button>
         </form>
+        <form action="/delete_appointment" method="POST"
+      onsubmit="return confirm('Kya aap is appointment ko delete karna chahte hain?');">
+    <input type="hidden" name="appointment_id" value="{{ a[0] }}">
+    <button type="submit" style="background:#dc2626;color:white;border:none;padding:6px 10px;border-radius:4px;cursor:pointer;">
+        Delete
+    </button>
+</form>
     </td>
 </tr>
 {% endfor %}
