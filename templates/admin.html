@@ -62,17 +62,32 @@ th {
                     <th>Phone</th>
                     <th>Service</th>
                     <th>Date</th>
-                    <th>Time</th>
+                    <th>Time</th> 
+                    <th>Status</th>  
                 </tr>
             </thead>
             <tbody>
                 {% for a in appointments %}
-                <tr>
-                    {% for value in a %}
-                    <td>{{ value }}</td>
-                    {% endfor %}
-                </tr>
-                {% endfor %}
+<tr>
+    {% for value in a[:7] %}
+    <td>{{ value }}</td>
+    {% endfor %}
+
+    <td>
+        <form action="/update_status" method="POST">
+            <input type="hidden" name="appointment_id" value="{{ a[0] }}">
+
+            <select name="status">
+                <option value="Pending" {% if a[7] == 'Pending' %}selected{% endif %}>Pending</option>
+                <option value="Confirmed" {% if a[7] == 'Confirmed' %}selected{% endif %}>Confirmed</option>
+                <option value="Completed" {% if a[7] == 'Completed' %}selected{% endif %}>Completed</option>
+            </select>
+
+            <button type="submit">Update</button>
+        </form>
+    </td>
+</tr>
+{% endfor %}
             </tbody>
         </table>
     </div>

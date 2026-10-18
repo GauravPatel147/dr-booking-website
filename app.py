@@ -104,12 +104,13 @@ def admin():
         password = request.form.get("password", "")
         if password != os.environ.get("ADMIN_PASSWORD"):
             return "Incorrect password", 401
+        session["admin_logged_in"] = True
 
         with get_db_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT id, full_name, email, phone, service,
-                           appointment_date, appointment_time
+       appointment_date, appointment_time, status
                     FROM appointments
                     ORDER BY id DESC
                     LIMIT 50
@@ -119,9 +120,34 @@ def admin():
         return render_template("admin.html", appointments=appointments)
 
     return render_template("admin_login.html")
+@app.route("/update_status", methods=["POST"])
+def update_status():
+    if not session.get("admin_logged_in"):
+        abort(403)
+
+    appointment_id = request.form.get("appointment_id")
+    status = request.form.get("status")
+
+    if status not in ["Pending", "Confirmed", "Completed"]:
+        return "Invalid status", 400
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE appointments SET status = %s WHERE id = %s",
+                    (status, appointment_id)
+                )
+        return redirect("/admin")
+    except Exception:
+        app.logger.exception("Status update failed")
+        return "Status update failed. Please try again.", 500
 if __name__ == "__main__":
     app.run(
         debug=False,
         port=int(os.environ.get("PORT", 5000))
     )
+    
+    
+    
     
