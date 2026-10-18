@@ -45,11 +45,52 @@ th {
     background: #176b87;
     color: white;
 }
+.filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 20px 0;
+}
+
+.filters input,
+.filters select {
+    padding: 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.filters input {
+    flex: 1;
+    min-width: 220px;
+}
+
+.filters select {
+    background: white;
+}
+
+tbody tr:hover {
+    background: #f8fafc;
+}
     </style>
 </head>
 <body>
     <h1>DoctorCare — Appointments</h1>
     <p>Recent appointment bookings</p>
+    <div class="filters">
+    <input
+        type="text"
+        id="searchInput"
+        placeholder="Search by name, email, phone..."
+    >
+
+    <select id="statusFilter">
+        <option value="">All Statuses</option>
+        <option value="Pending">Pending</option>
+        <option value="Confirmed">Confirmed</option>
+        <option value="Completed">Completed</option>
+    </select>
+</div>
 
     {% if appointments %}
     <div class="table-wrap">
@@ -94,5 +135,29 @@ th {
     {% else %}
     <p>No appointments found.</p>
     {% endif %}
+    <script>
+const searchInput = document.getElementById("searchInput");
+const statusFilter = document.getElementById("statusFilter");
+
+function filterAppointments() {
+    const search = searchInput.value.toLowerCase().trim();
+    const status = statusFilter.value;
+
+    document.querySelectorAll("tbody tr").forEach(row => {
+        const text = row.innerText.toLowerCase();
+        const statusSelect = row.querySelector('select[name="status"]');
+        const rowStatus = statusSelect ? statusSelect.value : "";
+
+        const matchesSearch = text.includes(search);
+        const matchesStatus = !status || rowStatus === status;
+
+        row.style.display =
+            matchesSearch && matchesStatus ? "" : "none";
+    });
+}
+
+searchInput.addEventListener("input", filterAppointments);
+statusFilter.addEventListener("change", filterAppointments);
+</script>
 </body>
 </html>
