@@ -1,8 +1,10 @@
 from flask import (
     Flask, render_template, request, redirect,
-    session, abort, url_for
+session, abort, url_for, send_file
 )
 from datetime import datetime, timedelta
+import csv
+from io import StringIO
 from functools import wraps
 import os
 import psycopg2
@@ -285,7 +287,47 @@ def delete_appointment():
         app.logger.exception("Appointment deletion failed")
         return "Delete failed. Please try again.", 500
 
+@app.route("/export_appointments")
+def export_appointments():
+    if not session.get("admin_logged_in"):
+        abort(403)
 
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT id, created_at, full_name, email, phone,
+                           service, appointment_date, appointment_time,
+                           message, status
+                    FROM appointments
+                    ORDER BY id DESC
+                """)
+                rows = cur.fetchall()
+
+        output = StringIO()
+        writer = csv.writer(output)
+
+        writer.writerow([
+            "ID", "Created At", "Full Name", "Email", "Phone",
+            "Service", "Date", "Time", "Message", "Status"
+        ])
+        writer.writerows(rows)
+
+        memory_file = StringIO(output.getvalue())
+        response = app.response_class(
+            memory_file.getvalue(),
+            mimetype="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition":
+                    "attachment; filename=doctorcare_appointments.csv"
+            }
+        )
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    except Exception:
+        app.logger.exception("CSV export failed")
+        return "CSV export failed. Please try again.", 500
 if __name__ == "__main__":
     if not app.secret_key:
         raise RuntimeError(

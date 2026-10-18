@@ -248,7 +248,18 @@
     </div>
 
     <h2>Recent Appointments</h2>
-
+<div style="margin: 15px 0;">
+    <a href="{{ url_for('export_appointments') }}"
+       style="display: inline-block;
+              background: #15803d;
+              color: white;
+              padding: 11px 18px;
+              border-radius: 8px;
+              text-decoration: none;
+              font-weight: bold;">
+        ⬇ Download CSV
+    </a>
+</div>
     <!-- Search and status filter -->
     <div class="filters">
 
