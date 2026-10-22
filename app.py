@@ -1,6 +1,6 @@
 from flask import (
     Flask, render_template, request, redirect,
-session, abort, url_for, send_file
+    session, abort, url_for
 )
 from datetime import datetime, timedelta
 import csv
@@ -8,6 +8,7 @@ from io import StringIO
 from functools import wraps
 import os
 import psycopg2
+from flask_mail import Mail, Message
 
 app = Flask(__name__)
 
@@ -20,6 +21,18 @@ app.config.update(
     SESSION_COOKIE_SECURE=os.environ.get("RENDER") is not None,
     PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),
 )
+
+# Email configuration
+app.config.update(
+    MAIL_SERVER="smtp.gmail.com",
+    MAIL_PORT=587,
+    MAIL_USE_TLS=True,
+    MAIL_USERNAME=os.environ.get("MAIL_USERNAME"),
+    MAIL_PASSWORD=os.environ.get("MAIL_PASSWORD"),
+    MAIL_DEFAULT_SENDER=os.environ.get("MAIL_USERNAME"),
+)
+
+mail = Mail(app)
 
 
 # Database connection
@@ -151,7 +164,6 @@ def admin():
         if not admin_password or password != admin_password:
             return "Incorrect password", 401
 
-        # Start a fresh session after successful login
         session.clear()
         session["admin_logged_in"] = True
         session.permanent = True
@@ -164,8 +176,6 @@ def admin():
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
-
-                # Dashboard counts
                 cur.execute("""
                     SELECT
                         COUNT(*) AS total,
@@ -190,7 +200,6 @@ def admin():
                     "completed": row[3],
                 }
 
-                # Recent appointments
                 cur.execute("""
                     SELECT id, full_name, email, phone, service,
                            appointment_date, appointment_time, status
@@ -225,7 +234,7 @@ def logout():
     return redirect(url_for("admin"))
 
 
-# Update appointment status
+# Update appointment status and send confirmation email
 @app.route("/update_status", methods=["POST"])
 @admin_required
 def update_status():
@@ -242,15 +251,61 @@ def update_status():
         with get_db_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
+                    SELECT full_name, email, service,
+                           appointment_date, appointment_time, status
+                    FROM appointments
+                    WHERE id = %s
+                    FOR UPDATE
+                """, (appointment_id,))
+
+                patient = cur.fetchone()
+
+                if patient is None:
+                    return "Appointment not found", 404
+
+                send_confirmation = (
+                    status == "Confirmed"
+                    and patient[5] != "Confirmed"
+                )
+
+                cur.execute("""
                     UPDATE appointments
                     SET status = %s
                     WHERE id = %s
                 """, (status, appointment_id))
 
-                if cur.rowcount == 0:
-                    return "Appointment not found", 404
-
             conn.commit()
+
+        # Send email only when the status changes to Confirmed
+        if send_confirmation:
+            try:
+                name, email, service, date, time, old_status = patient
+
+                message = Message(
+                    subject="Your DoctorCare Appointment is Confirmed",
+                    recipients=[email],
+                    body=(
+                        f"Hello {name},\n\n"
+                        "Your DoctorCare appointment has been confirmed.\n\n"
+                        f"Service: {service}\n"
+                        f"Date: {date}\n"
+                        f"Time: {time}\n\n"
+                        "Thank you for choosing DoctorCare."
+                    )
+                )
+
+                mail.send(message)
+
+                app.logger.info(
+                    "Confirmation email sent for appointment %s",
+                    appointment_id
+                )
+
+            except Exception:
+                app.logger.exception(
+                    "Confirmation email failed for appointment %s",
+                    appointment_id
+                )
 
         return redirect(url_for("admin"))
 
@@ -287,6 +342,8 @@ def delete_appointment():
         app.logger.exception("Appointment deletion failed")
         return "Delete failed. Please try again.", 500
 
+
+# Export appointments to CSV
 @app.route("/export_appointments")
 def export_appointments():
     if not session.get("admin_logged_in"):
@@ -302,6 +359,7 @@ def export_appointments():
                     FROM appointments
                     ORDER BY id DESC
                 """)
+
                 rows = cur.fetchall()
 
         output = StringIO()
@@ -311,23 +369,26 @@ def export_appointments():
             "ID", "Created At", "Full Name", "Email", "Phone",
             "Service", "Date", "Time", "Message", "Status"
         ])
+
         writer.writerows(rows)
 
-        memory_file = StringIO(output.getvalue())
         response = app.response_class(
-            memory_file.getvalue(),
+            output.getvalue(),
             mimetype="text/csv; charset=utf-8",
             headers={
                 "Content-Disposition":
                     "attachment; filename=doctorcare_appointments.csv"
             }
         )
+
         response.headers["Cache-Control"] = "no-store"
         return response
 
     except Exception:
         app.logger.exception("CSV export failed")
         return "CSV export failed. Please try again.", 500
+
+
 if __name__ == "__main__":
     if not app.secret_key:
         raise RuntimeError(
