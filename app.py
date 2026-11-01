@@ -8,7 +8,7 @@ from io import StringIO
 from functools import wraps
 import os
 import psycopg2
-from flask_mail import Mail, Message
+import requests
 
 app = Flask(__name__)
 
@@ -22,22 +22,64 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),
 )
 
-# Email configuration - Brevo SMTP
-app.config.update(
-    MAIL_SERVER=os.environ.get("MAIL_SERVER", "smtp-relay.brevo.com"),
-    MAIL_PORT=int(os.environ.get("MAIL_PORT", "587")),
-    MAIL_USE_TLS=True,
-    MAIL_USE_SSL=False,
-    MAIL_TIMEOUT=5 ,
-    MAIL_USERNAME=os.environ.get("MAIL_USERNAME"),
-    MAIL_PASSWORD=os.environ.get("MAIL_PASSWORD"),
-    MAIL_DEFAULT_SENDER=os.environ.get("MAIL_FROM_EMAIL"),
-)
 
-mail = Mail(app)
+# --------------------------------------------------
+# BREVO EMAIL API
+# --------------------------------------------------
+
+def send_brevo_email(name, email, service, date, time):
+    api_key = os.environ.get("BREVO_API_KEY")
+    sender_email = os.environ.get("MAIL_FROM_EMAIL")
+
+    if not api_key:
+        raise RuntimeError("BREVO_API_KEY is not configured")
+
+    if not sender_email:
+        raise RuntimeError("MAIL_FROM_EMAIL is not configured")
+
+    response = requests.post(
+        "https://api.brevo.com/v3/smtp/email",
+        headers={
+            "accept": "application/json",
+            "api-key": api_key,
+            "content-type": "application/json",
+        },
+        json={
+            "sender": {
+                "name": "DoctorCare",
+                "email": sender_email,
+            },
+            "to": [
+                {
+                    "email": email,
+                    "name": name,
+                }
+            ],
+            "subject": "Your DoctorCare Appointment is Confirmed",
+            "textContent": (
+                f"Hello {name},\n\n"
+                "Your DoctorCare appointment has been confirmed.\n\n"
+                f"Service: {service}\n"
+                f"Date: {date}\n"
+                f"Time: {time}\n\n"
+                "Thank you for choosing DoctorCare."
+            ),
+        },
+        timeout=10,
+    )
+
+    if not response.ok:
+        # Do not log the API key.
+        raise RuntimeError(
+            f"Brevo API error: HTTP {response.status_code} - "
+            f"{response.text[:500]}"
+        )
 
 
-# Database connection
+# --------------------------------------------------
+# DATABASE CONNECTION
+# --------------------------------------------------
+
 def get_db_connection():
     database_url = os.environ.get("DATABASE_URL")
 
@@ -47,7 +89,10 @@ def get_db_connection():
     return psycopg2.connect(database_url)
 
 
-# Create database table
+# --------------------------------------------------
+# CREATE / UPDATE DATABASE TABLE
+# --------------------------------------------------
+
 def init_db():
     if not os.environ.get("DATABASE_URL"):
         return
@@ -78,29 +123,45 @@ def init_db():
         conn.commit()
 
 
-# Admin authentication helper
+# --------------------------------------------------
+# ADMIN AUTHENTICATION
+# --------------------------------------------------
+
 def admin_required(view):
     @wraps(view)
     def wrapped_view(*args, **kwargs):
         if not session.get("admin_logged_in"):
             abort(403)
+
         return view(*args, **kwargs)
+
     return wrapped_view
 
 
-# Home page
+# --------------------------------------------------
+# HOME PAGE
+# --------------------------------------------------
+
 @app.route("/")
 def home():
     success = request.args.get("success") == "1"
     return render_template("index.html", success=success)
 
 
-# Book appointment
+# --------------------------------------------------
+# BOOK APPOINTMENT
+# --------------------------------------------------
+
 @app.route("/book", methods=["POST"])
 def book():
     fields = [
-        "full_name", "email", "phone",
-        "service", "date", "time", "message"
+        "full_name",
+        "email",
+        "phone",
+        "service",
+        "date",
+        "time",
+        "message",
     ]
 
     data = {
@@ -109,8 +170,12 @@ def book():
     }
 
     required = [
-        "full_name", "email", "phone",
-        "service", "date", "time"
+        "full_name",
+        "email",
+        "phone",
+        "service",
+        "date",
+        "time",
     ]
 
     if any(not data[field] for field in required):
@@ -127,8 +192,13 @@ def book():
             with conn.cursor() as cur:
                 cur.execute("""
                     INSERT INTO appointments (
-                        full_name, email, phone, service,
-                        appointment_date, appointment_time, message
+                        full_name,
+                        email,
+                        phone,
+                        service,
+                        appointment_date,
+                        appointment_time,
+                        message
                     )
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """, (
@@ -138,7 +208,7 @@ def book():
                     data["service"],
                     appointment_date,
                     data["time"],
-                    data["message"]
+                    data["message"],
                 ))
 
             conn.commit()
@@ -150,13 +220,16 @@ def book():
         app.logger.exception("Appointment booking failed")
         return (
             "Booking could not be completed. Please try again later.",
-            500
+            500,
         )
 
     return redirect(url_for("home", success=1))
 
 
-# Admin login and dashboard
+# --------------------------------------------------
+# ADMIN LOGIN AND DASHBOARD
+# --------------------------------------------------
+
 @app.route("/admin", methods=["GET", "POST"])
 def admin():
     if request.method == "POST":
@@ -203,8 +276,15 @@ def admin():
                 }
 
                 cur.execute("""
-                    SELECT id, full_name, email, phone, service,
-                           appointment_date, appointment_time, status
+                    SELECT
+                        id,
+                        full_name,
+                        email,
+                        phone,
+                        service,
+                        appointment_date,
+                        appointment_time,
+                        status
                     FROM appointments
                     ORDER BY id DESC
                     LIMIT 50
@@ -216,7 +296,7 @@ def admin():
             render_template(
                 "admin.html",
                 appointments=appointments,
-                dashboard_stats=dashboard_stats
+                dashboard_stats=dashboard_stats,
             )
         )
 
@@ -225,10 +305,16 @@ def admin():
 
     except Exception:
         app.logger.exception("Admin dashboard failed")
-        return "Could not load dashboard. Please try again.", 500
+        return (
+            "Could not load dashboard. Please try again.",
+            500,
+        )
 
 
-# Admin logout
+# --------------------------------------------------
+# ADMIN LOGOUT
+# --------------------------------------------------
+
 @app.route("/logout", methods=["POST"])
 @admin_required
 def logout():
@@ -236,25 +322,41 @@ def logout():
     return redirect(url_for("admin"))
 
 
-# Update appointment status and send confirmation email
+# --------------------------------------------------
+# UPDATE STATUS AND SEND CONFIRMATION EMAIL
+# --------------------------------------------------
+
 @app.route("/update_status", methods=["POST"])
 @admin_required
 def update_status():
-    appointment_id = request.form.get("appointment_id", type=int)
+    appointment_id = request.form.get(
+        "appointment_id", type=int
+    )
     status = request.form.get("status", "")
 
     if not appointment_id:
         return "Invalid appointment ID", 400
 
-    if status not in ["Pending", "Confirmed", "Completed"]:
+    allowed_statuses = [
+        "Pending",
+        "Confirmed",
+        "Completed",
+    ]
+
+    if status not in allowed_statuses:
         return "Invalid status", 400
 
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT full_name, email, service,
-                           appointment_date, appointment_time, status
+                    SELECT
+                        full_name,
+                        email,
+                        service,
+                        appointment_date,
+                        appointment_time,
+                        status
                     FROM appointments
                     WHERE id = %s
                     FOR UPDATE
@@ -278,49 +380,52 @@ def update_status():
 
             conn.commit()
 
-        # Send email only when the status changes to Confirmed
+        # The database update is committed before email delivery.
+        # An email failure will not undo the status update.
         if send_confirmation:
             try:
                 name, email, service, date, time, old_status = patient
 
-                message = Message(
-                    subject="Your DoctorCare Appointment is Confirmed",
-                    recipients=[email],
-                    body=(
-                        f"Hello {name},\n\n"
-                        "Your DoctorCare appointment has been confirmed.\n\n"
-                        f"Service: {service}\n"
-                        f"Date: {date}\n"
-                        f"Time: {time}\n\n"
-                        "Thank you for choosing DoctorCare."
-                    )
+                send_brevo_email(
+                    name=name,
+                    email=email,
+                    service=service,
+                    date=date,
+                    time=time,
                 )
 
-                mail.send(message)
-
                 app.logger.info(
-                    "Confirmation email sent for appointment %s",
-                    appointment_id
+                    "Confirmation email accepted by Brevo "
+                    "for appointment %s",
+                    appointment_id,
                 )
 
             except Exception:
                 app.logger.exception(
                     "Confirmation email failed for appointment %s",
-                    appointment_id
+                    appointment_id,
                 )
 
         return redirect(url_for("admin"))
 
     except Exception:
         app.logger.exception("Status update failed")
-        return "Status update failed. Please try again.", 500
+        return (
+            "Status update failed. Please try again.",
+            500,
+        )
 
 
-# Delete appointment
+# --------------------------------------------------
+# DELETE APPOINTMENT
+# --------------------------------------------------
+
 @app.route("/delete_appointment", methods=["POST"])
 @admin_required
 def delete_appointment():
-    appointment_id = request.form.get("appointment_id", type=int)
+    appointment_id = request.form.get(
+        "appointment_id", type=int
+    )
 
     if not appointment_id:
         return "Invalid appointment ID", 400
@@ -345,19 +450,28 @@ def delete_appointment():
         return "Delete failed. Please try again.", 500
 
 
-# Export appointments to CSV
-@app.route("/export_appointments")
-def export_appointments():
-    if not session.get("admin_logged_in"):
-        abort(403)
+# --------------------------------------------------
+# EXPORT APPOINTMENTS TO CSV
+# --------------------------------------------------
 
+@app.route("/export_appointments")
+@admin_required
+def export_appointments():
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT id, created_at, full_name, email, phone,
-                           service, appointment_date, appointment_time,
-                           message, status
+                    SELECT
+                        id,
+                        created_at,
+                        full_name,
+                        email,
+                        phone,
+                        service,
+                        appointment_date,
+                        appointment_time,
+                        message,
+                        status
                     FROM appointments
                     ORDER BY id DESC
                 """)
@@ -368,8 +482,16 @@ def export_appointments():
         writer = csv.writer(output)
 
         writer.writerow([
-            "ID", "Created At", "Full Name", "Email", "Phone",
-            "Service", "Date", "Time", "Message", "Status"
+            "ID",
+            "Created At",
+            "Full Name",
+            "Email",
+            "Phone",
+            "Service",
+            "Date",
+            "Time",
+            "Message",
+            "Status",
         ])
 
         writer.writerows(rows)
@@ -380,7 +502,7 @@ def export_appointments():
             headers={
                 "Content-Disposition":
                     "attachment; filename=doctorcare_appointments.csv"
-            }
+            },
         )
 
         response.headers["Cache-Control"] = "no-store"
@@ -391,6 +513,10 @@ def export_appointments():
         return "CSV export failed. Please try again.", 500
 
 
+# --------------------------------------------------
+# START APPLICATION
+# --------------------------------------------------
+
 if __name__ == "__main__":
     if not app.secret_key:
         raise RuntimeError(
@@ -399,5 +525,5 @@ if __name__ == "__main__":
 
     app.run(
         debug=False,
-        port=int(os.environ.get("PORT", 5000))
+        port=int(os.environ.get("PORT", 5000)),
     )
